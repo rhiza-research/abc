@@ -23,7 +23,7 @@ brew install hdf5 netcdf
 ### Install python dependencies
 
 ```
-cd abc
+cd subseasonal_world
 rye sync
 ```
 
