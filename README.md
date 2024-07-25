@@ -1,4 +1,4 @@
-# The Subseasonal World repo 
+# A Subseasonal World 
 
 The subseasonal world repo is in development. _subseasonal_ refers to climate and weather forecasts made 2-6 weeks in advance.  
 
@@ -23,7 +23,7 @@ brew install hdf5 netcdf
 ### Install python dependencies
 
 ```
-cd abc
+cd subseasonal_world
 rye sync
 ```
 
