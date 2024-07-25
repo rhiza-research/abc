@@ -3,8 +3,8 @@ import pathlib
 import pandas as pd
 
 import xarray as xr
-from abc_s2s.utils.general_util import string_to_dt
-from abc_s2s.utils.experiments_util import get_climatology
+from sw_data.utils.general_util import string_to_dt
+from sw_data.utils.experiments_util import get_climatology
 import numpy as np
 import copy
 

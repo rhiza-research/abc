@@ -4,12 +4,11 @@ Example usage:
     for i in {1..50}
     do
         # python src/data/download/download_iri_ecmwf.py -gr us1_5 -fd 20150514-20220103 -v -se -sr $i -wv precip
-        src/batch/batch_python.sh -m 1 --cores 1 --hours 2 src/data/download/download_iri_ecmwf.py -gr us1_5 -fd 20150514-20220103 -v -se -sr $i -wv precip
+        rye run python src/data/download/download_iri_ecmwf.py -gr us1_5 -fd 20150514-20220103 -v -se -sr $i -wv precip -kl
     done
 """
 import subprocess
 from multiprocessing import Pool, cpu_count
-from functools import partial
 import argparse
 import json
 import pathlib
@@ -18,10 +17,9 @@ import time
 from datetime import datetime
 import gcsfs
 import os
-import xarray as xr
 
-from abc_s2s.utils.data_util_old import df_contains_multiple_dates, df_contains_nas, is_valid_forecast_date, get_grid
-from abc_s2s.utils.general_util import (
+from sw_data.utils.data_util import df_contains_multiple_dates, df_contains_nas, is_valid_forecast_date, get_grid
+from sw_data.utils.general_util import (
     download_url,
     dt_to_string,
     get_dates,
@@ -30,7 +28,6 @@ from abc_s2s.utils.general_util import (
     print_ok,
     print_info,
     print_warning,
-    set_path_permission,
 )
 
 parser = argparse.ArgumentParser()
@@ -114,10 +111,6 @@ args = parser.parse_args()
 
 local_storage = os.getenv('STORAGE_LOCAL')
 cloud_storage = os.getenv('STORAGE_CLOUD')
-if local_storage is None:
-    local_storage = pathlib.Path("/Users/avocet/content/abc_s2s/")
-if cloud_storage is None:
-    cloud_storage = "gs://sheerwater-datalake"
 
 # Open gcloud bucket
 fs = gcsfs.GCSFileSystem(
@@ -164,7 +157,7 @@ else:
     restrict_leads_url = ""
 
 
-with open(pathlib.Path("/Users/avocet/content/abc_s2s/credentials.json"), "r") as credentials_file:
+with open(pathlib.Path("/Users/avocet/content/subseasonal_world/credentials.json"), "r") as credentials_file:
     credentials = json.load(credentials_file)
     ecmwf_key = credentials["ecmwf_key"]
 
