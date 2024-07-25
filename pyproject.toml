@@ -40,4 +40,4 @@ dev-dependencies = []
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/abc_s2s"]
+packages = ["src/sw_models", "src/sw_data", "src/sw_eval"]
