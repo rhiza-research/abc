@@ -1,4 +1,4 @@
-# The Subseasonal World repo 
+# A Subseasonal World 
 
 The subseasonal world repo is in development. _subseasonal_ refers to climate and weather forecasts made 2-6 weeks in advance.  
 
