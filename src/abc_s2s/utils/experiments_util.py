@@ -13,7 +13,7 @@ import time
 import sys
 from filelock import FileLock
 from functools import partial
-from abc.utils.general_util import printf, tic, toc
+from abc_s2s.utils.general_util import printf, tic, toc
 
 # Some global variables
 # Forecast id to file name

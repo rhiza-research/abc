@@ -37,7 +37,6 @@ def download_url(url, timeout=600, retry=3, cookies={}):
 
     for i in range(retry):
         try:
-            r = requests.get(url, timeout=timeout, cookies=cookies)
             r = session.get(url, timeout=timeout, cookies=cookies)
             return r
         except requests.exceptions.Timeout as e:

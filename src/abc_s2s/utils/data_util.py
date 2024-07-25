@@ -3,8 +3,8 @@ import pathlib
 import pandas as pd
 
 import xarray as xr
-from data_and_models.utils.general_util import string_to_dt
-from data_and_models.utils.experiments_util import get_climatology
+from abc_s2s.utils.general_util import string_to_dt
+from abc_s2s.utils.experiments_util import get_climatology
 import numpy as np
 import copy
 
@@ -57,7 +57,8 @@ def generate_dates_in_between(first_date, last_date, date_frequency):
     else:
         frequency_to_int = {"daily": 1, "weekly": 7}
         dates = [
-            first_date + datetime.timedelta(days=x * frequency_to_int[date_frequency])
+            first_date +
+            datetime.timedelta(days=x * frequency_to_int[date_frequency])
             for x in range(0, int((last_date - first_date).days / (frequency_to_int[date_frequency])) + 1,)
         ]
         return dates
@@ -102,7 +103,8 @@ def get_grid(region_id):
         latitudes = ["25.5", "48"]
         grid_size = "1.5"
     else:
-        raise NotImplementedError("Only grids global1_5, us1_0 and us1_5 have been implemented.")
+        raise NotImplementedError(
+            "Only grids global1_5, us1_0 and us1_5 have been implemented.")
     return longitudes, latitudes, grid_size
 
 
@@ -120,7 +122,8 @@ def df_is_all_nas(file_path, column_name):
     try:
         df = xr.open_dataset(file_path).to_dataframe().reset_index()
     except ValueError:
-        df = open_ecmwf_reforecast_dataset(file_path).to_dataframe().reset_index()
+        df = open_ecmwf_reforecast_dataset(
+            file_path).to_dataframe().reset_index()
     return df.isna()[column_name].all()
 
 
@@ -128,7 +131,8 @@ def df_contains_nas(file_path, column_name, how="any"):
     try:
         df = xr.open_dataset(file_path).to_dataframe().reset_index()
     except ValueError:
-        df = open_ecmwf_reforecast_dataset(file_path).to_dataframe().reset_index()
+        df = open_ecmwf_reforecast_dataset(
+            file_path).to_dataframe().reset_index()
     nas_in_column = df.isna()[column_name]
     if how == "all":
         return nas_in_column.all()
@@ -142,7 +146,8 @@ def df_contains_multiple_dates(file_path, time_col="S"):
     try:
         df = xr.open_dataset(file_path).to_dataframe().reset_index()
     except ValueError:
-        df = open_ecmwf_reforecast_dataset(file_path).to_dataframe().reset_index()
+        df = open_ecmwf_reforecast_dataset(
+            file_path).to_dataframe().reset_index()
     return len(df[time_col].unique()) > 1
 
 
@@ -152,14 +157,17 @@ def open_ecmwf_reforecast_dataset(file_path):
     """
 
     ds = xr.open_dataset(file_path, decode_times=False)
-    ds['S'] = pd.to_datetime(ds['S'].values, unit="D", origin=pd.Timestamp("1960-01-01"))
+    ds['S'] = pd.to_datetime(ds['S'].values, unit="D",
+                             origin=pd.Timestamp("1960-01-01"))
 
     model_issuance_day = ds['S.day'].values[0]
     model_issuance_month = ds['S.month'].values[0]
-    model_issuance_date_in_1960 = pd.Timestamp(f"1960-{model_issuance_month}-{model_issuance_day}")
+    model_issuance_date_in_1960 = pd.Timestamp(
+        f"1960-{model_issuance_month}-{model_issuance_day}")
     # While hdates refer to years (for which the model issued in ds["S"] is initialized), its values are given as
     # months until the middle of the year, so 6 months are subtracted to yield the beginning of the year.
-    ds['hdate'] = pd.to_datetime([model_issuance_date_in_1960 + pd.DateOffset(months=x-6) for x in ds['hdate'].values])
+    ds['hdate'] = pd.to_datetime(
+        [model_issuance_date_in_1960 + pd.DateOffset(months=x-6) for x in ds['hdate'].values])
 
     return ds
 
@@ -174,7 +182,8 @@ def get_subx_dataframe_from_nc_file(input_nc_path, model, args):
     elif args.lead_times == "56w":
         forecast_cols = [f"iri_{model}_{args.weather_variable}-29.5d"]
     else:
-        forecast_cols = [f"iri_{model}_{args.weather_variable}-{x}.5d" for x in range(0, df.shape[1] - len(base_cols))]
+        forecast_cols = [
+            f"iri_{model}_{args.weather_variable}-{x}.5d" for x in range(0, df.shape[1] - len(base_cols))]
 
     df.columns = base_cols + forecast_cols
     df.start_date = df.start_date.dt.normalize()
@@ -189,15 +198,19 @@ def get_ecmwf_dataframe_from_nc_file(input_nc_path, args):
     if args.forecast_type == "forecast":
         df = xr.open_dataset(input_nc_path).to_dataframe().reset_index()
         # Drop the "M" column if it exists
-        df = df.drop("M",axis=1,errors="ignore").set_index(["S", "X", "Y"]).pivot(columns=leads_id).reset_index()
+        df = df.drop("M", axis=1, errors="ignore").set_index(
+            ["S", "X", "Y"]).pivot(columns=leads_id).reset_index()
 
     else:
-        df = open_ecmwf_reforecast_dataset(input_nc_path).to_dataframe().reset_index()
+        df = open_ecmwf_reforecast_dataset(
+            input_nc_path).to_dataframe().reset_index()
 
         weather_variable_names_on_file = {"tmp2m": "2t", "precip": "tp"}
-        dates_with_na = df["hdate"][df[weather_variable_names_on_file[args.weather_variable]].isnull()].unique()
+        dates_with_na = df["hdate"][df[weather_variable_names_on_file[args.weather_variable]].isnull(
+        )].unique()
         df = df[~df["hdate"].isin(dates_with_na)]
-        df = df.set_index(["S", "hdate", "X", "Y"]).pivot(columns=leads_id).reset_index()
+        df = df.set_index(["S", "hdate", "X", "Y"]).pivot(
+            columns=leads_id).reset_index()
 
     if args.forecast_type == "forecast":
         base_cols = ["start_date", "lon", "lat"]
@@ -208,7 +221,8 @@ def get_ecmwf_dataframe_from_nc_file(input_nc_path, args):
     elif args.lead_times == "56w":
         forecast_cols = [f"iri_ecmwf_{args.weather_variable}-29.5d"]
     else:
-        forecast_cols = [f"iri_ecmwf_{args.weather_variable}-{x}.5d" for x in range(0, df.shape[1] - len(base_cols))]
+        forecast_cols = [
+            f"iri_ecmwf_{args.weather_variable}-{x}.5d" for x in range(0, df.shape[1] - len(base_cols))]
     df.columns = base_cols + forecast_cols
 
     df.lon = df.lon + 360
@@ -238,7 +252,8 @@ def load_mask_dataframe(geographic_region):
     elif geographic_region == "global0_5":
         return None
     else:
-        raise NotImplementedError("Please specify which mask file to use with this geographic region.")
+        raise NotImplementedError(
+            "Please specify which mask file to use with this geographic region.")
 
     ds = xr.open_dataset(mask_file)
     df = ds.to_dataframe().reset_index()
@@ -254,7 +269,8 @@ def apply_mask_to_dataframe(df, geographic_region):
         df = pd.merge(df, mask_df, on=['lat', 'lon'], how='inner')
     return df
 
-def get_ecmwf_indicator_dataframe_from_nc_file(input_nc_path, df_clim_terciles, 
+
+def get_ecmwf_indicator_dataframe_from_nc_file(input_nc_path, df_clim_terciles,
                                                weather_variable,
                                                forecast_type,
                                                lead_times,
@@ -263,68 +279,80 @@ def get_ecmwf_indicator_dataframe_from_nc_file(input_nc_path, df_clim_terciles,
 
     # Set control and perturbed file names
 
-
-    input_nc_path_control = input_nc_path if "-cf-" in str(input_nc_path) else pathlib.Path(str(input_nc_path).replace('-pf-', '-cf-'))
-    input_nc_path_perturbed = input_nc_path if "-pf-" in str(input_nc_path) else pathlib.Path(str(input_nc_path).replace('-cf-', '-pf-'))
+    input_nc_path_control = input_nc_path if "-cf-" in str(
+        input_nc_path) else pathlib.Path(str(input_nc_path).replace('-pf-', '-cf-'))
+    input_nc_path_perturbed = input_nc_path if "-pf-" in str(
+        input_nc_path) else pathlib.Path(str(input_nc_path).replace('-cf-', '-pf-'))
 
     if forecast_type == "forecast":
         # Load the control forecast
-        df_control = xr.open_dataset(input_nc_path_control).to_dataframe().reset_index()
+        df_control = xr.open_dataset(
+            input_nc_path_control).to_dataframe().reset_index()
         df_control['M'] = 0
         # Load the perturbed forecast
-        df = xr.open_dataset(input_nc_path_perturbed).to_dataframe().reset_index()
-        #Append the perturbed forecasts to the control forecast
+        df = xr.open_dataset(
+            input_nc_path_perturbed).to_dataframe().reset_index()
+        # Append the perturbed forecasts to the control forecast
         df = df_control.append(df, sort=True)
-        #Pivot dataframe
-        df = df.set_index(["M", "S", "X", "Y"]).pivot(columns=leads_id).reset_index()
+        # Pivot dataframe
+        df = df.set_index(["M", "S", "X", "Y"]).pivot(
+            columns=leads_id).reset_index()
 
-        #select relevant base columns, model_issuance_date depends on model and is irrelevant when avering over all models
+        # select relevant base columns, model_issuance_date depends on model and is irrelevant when avering over all models
         base_cols = ["model", "start_date", "lon", "lat"]
     else:
         # Load the control forecast
-        df_control = open_ecmwf_reforecast_dataset(input_nc_path_control).to_dataframe().reset_index()
+        df_control = open_ecmwf_reforecast_dataset(
+            input_nc_path_control).to_dataframe().reset_index()
         df_control['M'] = 0
         # Load the perturbed forecasts
-        df = open_ecmwf_reforecast_dataset(input_nc_path_perturbed).to_dataframe().reset_index()
-        #Append the perturbed forecasts to the control forecast
+        df = open_ecmwf_reforecast_dataset(
+            input_nc_path_perturbed).to_dataframe().reset_index()
+        # Append the perturbed forecasts to the control forecast
         df = df_control.append(df, sort=True)
-        #Pivot dataframe
+        # Pivot dataframe
         weather_variable_names_on_file = {"tmp2m": "2t", "precip": "tp"}
-        dates_with_na = df["hdate"][df[weather_variable_names_on_file[weather_variable]].isnull()].unique()
+        dates_with_na = df["hdate"][df[weather_variable_names_on_file[weather_variable]].isnull(
+        )].unique()
         df = df[~df["hdate"].isin(dates_with_na)]
-        df = df.set_index(["M", "S", "hdate", "X", "Y"]).pivot(columns=leads_id).reset_index()
+        df = df.set_index(["M", "S", "hdate", "X", "Y"]).pivot(
+            columns=leads_id).reset_index()
 
-        #select relevant base columns, model_issuance_date depends on model and is irrelevant when avering over all models
-        base_cols = ["model", "model_issuance_date", "start_date", "lon", "lat"]
+        # select relevant base columns, model_issuance_date depends on model and is irrelevant when avering over all models
+        base_cols = ["model", "model_issuance_date",
+                     "start_date", "lon", "lat"]
 
-
-    # Select relevant lags    
+    # Select relevant lags
     if lead_times == "34w":
         forecast_cols = [f"iri_ecmwf_{weather_variable}-15.5d"]
     elif lead_times == "56w":
         forecast_cols = [f"iri_ecmwf_{weather_variable}-29.5d"]
     else:
-        forecast_cols = [f"iri_ecmwf_{weather_variable}-{x}.5d" for x in range(0, df.shape[1] - len(base_cols))]
+        forecast_cols = [
+            f"iri_ecmwf_{weather_variable}-{x}.5d" for x in range(0, df.shape[1] - len(base_cols))]
     df.columns = base_cols + forecast_cols
 
-    #df.lon = df.lon + 360
+    # df.lon = df.lon + 360
 
     # Get number of ensemble members
     num_models = len(df["model"].unique())
 
     # Get lat lons
-    lat_lon_clim = [(i_lat, i_lon) for i_lat, i_lon in zip(df_clim_terciles['lat'], df_clim_terciles['lon'])] 
+    lat_lon_clim = [(i_lat, i_lon) for i_lat, i_lon in zip(
+        df_clim_terciles['lat'], df_clim_terciles['lon'])]
     lat_lon_iri = df.groupby(['lat', 'lon']).size().reset_index()
-    lat_lon_iri = [(i_lat, i_lon) for i_lat, i_lon in zip(lat_lon_iri['lat'], lat_lon_iri['lon'])] 
+    lat_lon_iri = [(i_lat, i_lon) for i_lat, i_lon in zip(
+        lat_lon_iri['lat'], lat_lon_iri['lon'])]
     lat_lons = [l for l in lat_lon_iri if l in lat_lon_clim]
     df_clim_terciles = df_clim_terciles.set_index(['lat', 'lon'])
-    
-    df_p = copy.copy(df)
-    df_p = df.join(df_clim_terciles, on=["lat", "lon"]) # join with terciles values
-    df_p = df_p.dropna(axis=0, subset=df_clim_terciles.columns) # drop lat lons without climatology terciles
-    df_p = df_p.drop("model", axis=1) # drop the model column
-    df_p = df_p.drop(df_clim_terciles.columns, axis=1)
 
+    df_p = copy.copy(df)
+    # join with terciles values
+    df_p = df.join(df_clim_terciles, on=["lat", "lon"])
+    # drop lat lons without climatology terciles
+    df_p = df_p.dropna(axis=0, subset=df_clim_terciles.columns)
+    df_p = df_p.drop("model", axis=1)  # drop the model column
+    df_p = df_p.drop(df_clim_terciles.columns, axis=1)
 
     if forecast_type == "forecast":
         groupby_list = ["lat", "lon", "start_date"]
@@ -343,21 +371,24 @@ def get_ecmwf_indicator_dataframe_from_nc_file(input_nc_path, df_clim_terciles,
         t2 = df_clim_terciles.loc[i_lat, i_lon][f'{weather_variable}_t2']
 
         if get_indicators == "p1":
-            ret[grp] = df_i[forecast_cols].le(t1).sum(axis=0).div(df_i.shape[0])
+            ret[grp] = df_i[forecast_cols].le(
+                t1).sum(axis=0).div(df_i.shape[0])
         else:
-            ret[grp] = df_i[forecast_cols].gt(t2).sum(axis=0).div(df_i.shape[0])
+            ret[grp] = df_i[forecast_cols].gt(
+                t2).sum(axis=0).div(df_i.shape[0])
 
     df_ret = pd.DataFrame.from_dict(ret, orient="index")
     df_ret.index.set_names(names=groupby_list, inplace=True)
     df_ret = df_ret.reset_index()
     return df_ret
 
+
 def get_clim_terciles(gt_id):
     clim = get_climatology(gt_id)
     gt_var = 'precip' if 'precip' in gt_id else 'tmp2m'
-    df = clim.groupby(['lat', 'lon'])[[gt_var]].agg(lambda g: np.percentile(g, 33.3))
+    df = clim.groupby(['lat', 'lon'])[[gt_var]].agg(
+        lambda g: np.percentile(g, 33.3))
     df = df.rename(columns={gt_var: f'{gt_var}_t1'})
-    df[f"{gt_var}_t2"] = clim.groupby(['lat', 'lon'])[[gt_var]].agg(lambda g: np.percentile(g, 66.6))
+    df[f"{gt_var}_t2"] = clim.groupby(['lat', 'lon'])[[gt_var]].agg(
+        lambda g: np.percentile(g, 66.6))
     return df.reset_index()
-    
-
