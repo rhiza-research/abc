@@ -1,12 +1,11 @@
-# Adaptive Bias Correction 
+# The Subseasonal World repo 
 
-The `adaptive bias correction` package provides an a package for running the
-ABC subseasonal forecasting model.Here, _subseasonal_ refers to climate and weather forecasts made 2-6 weeks in advance.  
+The subseasonal world repo is in development. _subseasonal_ refers to climate and weather forecasts made 2-6 weeks in advance.  
 
 
 ## Modeling 
 
-Mdoeling code is run using python. Python packages and versions are managed by Rye. Install
+Code is run using python. Python packages and versions are managed by Rye. Install
 Rye to get started.
 
 ### Install Rye
