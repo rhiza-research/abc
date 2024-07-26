@@ -41,4 +41,5 @@ To set your default credentials for other applictions, like the gcloud Python AP
 gcloud auth application-default login
 ```
 
-
+### Setup CDS API for ECMWF data download
+Following instructions [here](https://cds.climate.copernicus.eu/api-how-to).
