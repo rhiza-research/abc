@@ -131,7 +131,8 @@ def createmaskdf(mask_file):
     fh = netCDF4.Dataset(mask_file, 'r')
     # fh = xr.open_dataset(mask_file)
     lat = fh.variables['lat'][:]
-    lon = fh.variables['lon'][:] + 360 if 'global_1_5_mask.nc' not in mask_file else fh.variables['lon'][:]
+    lon = fh.variables['lon'][:] + \
+        360 if 'global_1_5_mask.nc' not in mask_file else fh.variables['lon'][:]
     mask = fh.variables['mask'][:]
     lon, lat = np.meshgrid(lon, lat)
     # mask_df = pd.DataFrame({'lat': lat.flatten(),
@@ -798,8 +799,8 @@ def year_slice(df, first_year=None, date_col='start_date'):
     """
     if first_year is None:
         return df
-    ###years = pd.to_datetime(df[date_col]).dt.year
-    #years = df[date_col].dt.year
+    # years = pd.to_datetime(df[date_col]).dt.year
+    # years = df[date_col].dt.year
     if first_year <= df[date_col].min().year:
         # No need to slice
         return df
@@ -1664,4 +1665,3 @@ def cond_indices(conditioning_data, conditioning_columns, target_conditioning_va
     for c in df_aux.columns[1:]:
         indic = (indic & df_aux[c].values)
     return indic
-

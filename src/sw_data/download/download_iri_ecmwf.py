@@ -17,6 +17,7 @@ import time
 from datetime import datetime
 import gcsfs
 import os
+import xarray as xr
 
 from sw_data.utils.data_util import df_contains_multiple_dates, df_contains_nas, is_valid_forecast_date, get_grid
 from sw_data.utils.general_util import (
@@ -107,6 +108,13 @@ parser.add_argument(
     action="store_true",
     help="If true, keeps local files after uploading to cloud storage.",
 )
+
+parser.add_argument(
+    "--multiprocess",
+    "-mp",
+    action="store_true",
+    help="If true, run download in multiple processes."
+)
 args = parser.parse_args()
 
 local_storage = os.getenv('STORAGE_LOCAL')
@@ -129,18 +137,21 @@ forecast_runs = "control" if args.control_forecast else "perturbed"
 leads_id = "LA" if args.weather_variable == "tmp2m" else "L"
 lead_shift = "14" if args.weather_variable == "tmp2m" else "13"
 average_model_runs_url = "%5BM%5Daverage/" if args.average_runs else ""
-single_model_run_url = f"M/%28{args.single_run}%29VALUES/" if args.single_run > 0 else ""
+single_model_run_url = f"M/%28{
+    args.single_run}%29VALUES/" if args.single_run > 0 else ""
 
 longitudes, latitudes, grid_size = get_grid(args.geographic_region)
 restrict_latitudes_url = f"Y/{latitudes[0]}/{grid_size}/{latitudes[1]}/GRID/"
-restrict_longitudes_url = f"X/{longitudes[0]}/{grid_size}/{longitudes[1]}/GRID/"
+restrict_longitudes_url = f"X/{longitudes[0]
+                               }/{grid_size}/{longitudes[1]}/GRID/"
 
 
 if args.weather_variable == "tmp2m":
     # Average temperature over the 2-week period, convert from Kelvin to Celsius.
     accumulate_leads_url = (
         f"{leads_id}/{ACCUMULATE_LEADS_PERIOD}/"
-        f"runningAverage/{leads_id}/-{int(ACCUMULATE_LEADS_PERIOD/2)}/shiftGRID/"
+        f"runningAverage/{leads_id}/-{
+            int(ACCUMULATE_LEADS_PERIOD/2)}/shiftGRID/"
     )
     convert_units_url = "(Celsius_scale)/unitconvert/"
 else:
@@ -177,7 +188,8 @@ def download_and_write(forecast_date):
     file_path = local_storage / folder_name / \
         f"{dt_to_string(forecast_date)}.nc"
 
-    cloud_path = f"{cloud_storage}/{folder_name}/{dt_to_string(forecast_date)}.nc"
+    cloud_path = f"{
+        cloud_storage}/{folder_name}/{dt_to_string(forecast_date)}.nc"
 
     day, month, year = datetime.strftime(forecast_date, "%d,%b,%Y").split(",")
 
@@ -234,24 +246,29 @@ def download_and_write(forecast_date):
     if r.status_code == 200 and r.headers["Content-Type"] == "application/x-netcdf":
         print_info(f"Downloading: {day} {month} {year}.", verbose=args.verbose)
 
-        with open(file_path, "wb") as f:
+        with open(f"{file_path}", "wb") as f:
             f.write(r.content)
+        df = xr.open_dataset(f"{file_path}", engine="netcdf4")
+        df.to_netcdf(file_path, engine='h5netcdf')
 
         print_info(
-            f"-done (downloaded {sys.getsizeof(r.content)/1024:.2f} KB in {time.time() - t:.2f}s).\n",
+            f"-done (downloaded {sys.getsizeof(r.content) /
+                                 1024:.2f} KB in {time.time() - t:.2f}s).\n",
             verbose=args.verbose,
         )
 
         if args.check_file_integrity:
             if df_contains_nas(file_path, weather_variable_name_on_server.split("/.")[1], how="any"):
                 print_warning(
-                    f"Warning: {day} {month} {year} contains nas in weather variable.",
+                    f"Warning: {day} {month} {
+                        year} contains nas in weather variable.",
                     skip_line_before=False,
                     skip_line_after=False,
                 )
             if df_contains_multiple_dates(file_path, time_col="S"):
                 print_warning(
-                    f"Warning: {day} {month} {year} file contains multiple forecast dates.",
+                    f"Warning: {day} {month} {
+                        year} file contains multiple forecast dates.",
                     skip_line_before=False,
                     skip_line_after=False,
                 )
@@ -272,14 +289,19 @@ def download_and_write(forecast_date):
         subprocess.run(
             f"rm {file_path}", shell=True)
 
+
 if __name__ == '__main__':
     print("There are {} CPUs on this machine ".format(cpu_count()))
     tic = time.time()
     pool = Pool(cpu_count())
 
     target_dates = get_dates(args.forecast_dates)
-    results = pool.map(download_and_write, target_dates)
-    # results = pool.map(test, target_dates)
+    if args.multiprocess:
+        results = pool.map(download_and_write, target_dates)
+    else:
+        for target_date in target_dates:
+            download_and_write(target_date)
+
     pool.close()
     pool.join()
     print(f"Time taken: {time.time() - tic:.2f}s")

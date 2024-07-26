@@ -118,22 +118,23 @@ def get_forecast_type(model, forecast_date):
     return forecast_type
 
 
-def df_is_all_nas(file_path, column_name):
+def df_is_all_nas(file_path, column_name, engine="netcdf4"):
     try:
-        df = xr.open_dataset(file_path).to_dataframe().reset_index()
+        df = xr.open_dataset(
+            file_path, engine=engine).to_dataframe().reset_index()
     except ValueError:
         df = open_ecmwf_reforecast_dataset(
             file_path).to_dataframe().reset_index()
     return df.isna()[column_name].all()
 
 
-def df_contains_nas(file_path, column_name, how="any"):
+def df_contains_nas(file_path, column_name, how="any", engine="netcdf4"):
     try:
-        df = xr.open_dataset(file_path).to_dataframe().reset_index()
+        df = xr.open_dataset(file_path, engine=engine)
     except ValueError:
         df = open_ecmwf_reforecast_dataset(
             file_path).to_dataframe().reset_index()
-    nas_in_column = df.isna()[column_name]
+    nas_in_column = df[column_name].isnull()
     if how == "all":
         return nas_in_column.all()
     elif how == "any":
@@ -142,21 +143,22 @@ def df_contains_nas(file_path, column_name, how="any"):
         raise NotImplementedError("Flag 'how' must receive 'any' or 'all'.")
 
 
-def df_contains_multiple_dates(file_path, time_col="S"):
+def df_contains_multiple_dates(file_path, time_col="S", engine="netcdf4"):
     try:
-        df = xr.open_dataset(file_path).to_dataframe().reset_index()
+        df = xr.open_dataset(
+            file_path, engine=engine).to_dataframe().reset_index()
     except ValueError:
         df = open_ecmwf_reforecast_dataset(
             file_path).to_dataframe().reset_index()
     return len(df[time_col].unique()) > 1
 
 
-def open_ecmwf_reforecast_dataset(file_path):
+def open_ecmwf_reforecast_dataset(file_path, engine="netcdf4"):
     """Opens an ecmwf reforecast nc file. It is not possible to use xr.open_dataset() because the encoding
     for the hindcast date (hdate) is given as months since 1960-01-01, which is not standard for xarray.
     """
 
-    ds = xr.open_dataset(file_path, decode_times=False)
+    ds = xr.open_dataset(file_path, engine=engine, decode_times=False)
     ds['S'] = pd.to_datetime(ds['S'].values, unit="D",
                              origin=pd.Timestamp("1960-01-01"))
 
@@ -172,8 +174,9 @@ def open_ecmwf_reforecast_dataset(file_path):
     return ds
 
 
-def get_subx_dataframe_from_nc_file(input_nc_path, model, args):
-    df = xr.open_dataset(input_nc_path).to_dataframe().reset_index()
+def get_subx_dataframe_from_nc_file(input_nc_path, model, args, engine="netcdf4"):
+    df = xr.open_dataset(
+        input_nc_path, engine=engine).to_dataframe().reset_index()
     df = df.set_index(["S", "X", "Y"]).pivot(columns="L").reset_index()
 
     base_cols = ["start_date", "lon", "lat"]
@@ -192,18 +195,15 @@ def get_subx_dataframe_from_nc_file(input_nc_path, model, args):
     return df
 
 
-def get_ecmwf_dataframe_from_nc_file(input_nc_path, args):
+def get_ecmwf_dataframe_from_nc_file(input_nc_path, args, engine="netcdf4"):
     leads_id = "LA" if args.weather_variable == "tmp2m" else "L"
 
     if args.forecast_type == "forecast":
-        df = xr.open_dataset(input_nc_path).to_dataframe().reset_index()
-        # Drop the "M" column if it exists
-        df = df.drop("M", axis=1, errors="ignore").set_index(
-            ["S", "X", "Y"]).pivot(columns=leads_id).reset_index()
 
+        # Drop the "M" column if it exists
+        df = df.drop_vars("M", errors="ignore")
     else:
-        df = open_ecmwf_reforecast_dataset(
-            input_nc_path).to_dataframe().reset_index()
+        df = open_ecmwf_reforecast_dataset(input_nc_path, engine=engine)
 
         weather_variable_names_on_file = {"tmp2m": "2t", "precip": "tp"}
         dates_with_na = df["hdate"][df[weather_variable_names_on_file[args.weather_variable]].isnull(
@@ -222,16 +222,16 @@ def get_ecmwf_dataframe_from_nc_file(input_nc_path, args):
         forecast_cols = [f"iri_ecmwf_{args.weather_variable}-29.5d"]
     else:
         forecast_cols = [
-            f"iri_ecmwf_{args.weather_variable}-{x}.5d" for x in range(0, df.shape[1] - len(base_cols))]
-    df.columns = base_cols + forecast_cols
+            f"iri_ecmwf_{args.weather_variable}-{x}.5d" for x in range(0, df.dims["L"])]
 
+    df.columns = base_cols + forecast_cols
     df.lon = df.lon + 360
 
     return df
 
 
-def get_temp_dataframe_from_nc_file(input_nc_path, args):
-    ds = xr.open_dataset(input_nc_path)
+def get_temp_dataframe_from_nc_file(input_nc_path, args, engine="netcdf4"):
+    ds = xr.open_dataset(input_nc_path, engine=engine)
     ds["X"] = ds["X"] + 360
     ds["T"] = pd.to_datetime(ds["T"].values, unit="D", origin="julian")
 
@@ -242,7 +242,7 @@ def get_temp_dataframe_from_nc_file(input_nc_path, args):
     return df
 
 
-def load_mask_dataframe(geographic_region):
+def load_mask_dataframe(geographic_region, engine="netcdf4"):
     if geographic_region == "us1_0":
         mask_file = pathlib.Path("src/setup/us_mask.nc")
     elif geographic_region == "us1_5":
@@ -255,7 +255,7 @@ def load_mask_dataframe(geographic_region):
         raise NotImplementedError(
             "Please specify which mask file to use with this geographic region.")
 
-    ds = xr.open_dataset(mask_file)
+    ds = xr.open_dataset(mask_file, engine=engine)
     df = ds.to_dataframe().reset_index()
     df = df[df["mask"] == 1].drop("mask", axis=1)
     df.lon = df.lon + 360
@@ -274,7 +274,8 @@ def get_ecmwf_indicator_dataframe_from_nc_file(input_nc_path, df_clim_terciles,
                                                weather_variable,
                                                forecast_type,
                                                lead_times,
-                                               get_indicators):
+                                               get_indicators,
+                                               engine="netcdf4"):
     leads_id = "LA" if weather_variable == "tmp2m" else "L"
 
     # Set control and perturbed file names
@@ -287,7 +288,7 @@ def get_ecmwf_indicator_dataframe_from_nc_file(input_nc_path, df_clim_terciles,
     if forecast_type == "forecast":
         # Load the control forecast
         df_control = xr.open_dataset(
-            input_nc_path_control).to_dataframe().reset_index()
+            input_nc_path_control, engine=engine).to_dataframe().reset_index()
         df_control['M'] = 0
         # Load the perturbed forecast
         df = xr.open_dataset(
