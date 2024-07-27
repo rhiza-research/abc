@@ -7,6 +7,7 @@ from sw_data.utils.general_util import string_to_dt
 from sw_data.utils.experiments_util import get_climatology
 import numpy as np
 import copy
+import os
 
 valid_forecast_dates = {
     "hindcast": {
@@ -190,7 +191,7 @@ def get_subx_dataframe_from_nc_file(input_nc_path, model, args, engine="netcdf4"
 
     df.columns = base_cols + forecast_cols
     df.start_date = df.start_date.dt.normalize()
-    df.lon = df.lon + 360
+    # df.lon = df.lon + 360
 
     return df
 
@@ -243,10 +244,11 @@ def get_temp_dataframe_from_nc_file(input_nc_path, args, engine="netcdf4"):
 
 
 def load_mask_dataframe(geographic_region, engine="netcdf4"):
+    cloud_storage = os.getenv('STORAGE_CLOUD')
     if geographic_region == "us1_0":
-        mask_file = pathlib.Path("src/setup/us_mask.nc")
+        mask_file = f"{cloud_storage}/data/masks/us_mask.nc"
     elif geographic_region == "us1_5":
-        mask_file = pathlib.Path("data/masks/us_1_5_mask.nc")
+        mask_file = f"{cloud_storage}/data/masks/us_1_5_mask.nc"
     elif geographic_region == "global1_5":
         return None
     elif geographic_region == "global0_5":
@@ -255,6 +257,7 @@ def load_mask_dataframe(geographic_region, engine="netcdf4"):
         raise NotImplementedError(
             "Please specify which mask file to use with this geographic region.")
 
+    raise NotImplementedError("This function is not yet implemented for zarr.")
     ds = xr.open_dataset(mask_file, engine=engine)
     df = ds.to_dataframe().reset_index()
     df = df[df["mask"] == 1].drop("mask", axis=1)

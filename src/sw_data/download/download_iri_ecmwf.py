@@ -286,8 +286,7 @@ def download_and_write(forecast_date):
         f"gsutil cp {file_path} {cloud_path}", shell=True)
 
     if not args.keep_local:
-        subprocess.run(
-            f"rm {file_path}", shell=True)
+        os.remove(file_path)
 
 
 if __name__ == '__main__':

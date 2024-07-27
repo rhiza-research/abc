@@ -165,7 +165,7 @@ def get_us_mask(filename="data/masks/us_mask.nc"):
     return createmaskdf(filename)
 
 
-def subsetmask(df, mask_df=get_contest_mask()):
+def subsetmask(df, mask_df=None):
     """Subsets df to rows with lat,lon pairs included in both df and mask_df
 
     Args:
@@ -175,6 +175,8 @@ def subsetmask(df, mask_df=get_contest_mask()):
     Returns:
         Subsetted dataframe
     """
+    if mask_df is None:
+        mask_df = get_contest_mask()
     return pd.merge(df, mask_df, on=['lat', 'lon'], how='inner')
 
 
