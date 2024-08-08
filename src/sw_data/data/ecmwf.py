@@ -7,17 +7,17 @@ import os
 import xarray as xr
 import dateparser
 from sheerwater_benchmarking.utils.caching import cacheable
+from sheerwater_benchmarking.utils.remote import dask_remote
 
 from sw_data.utils.secrets import ecmwf_secret
-from sw_data.utils.remote import dask_remote
 
 from .utils import get_grid, print_ok, print_info, print_warning, print_error, \
-    download_url, get_dates
+    download_url, get_dates, is_valid_forecast_date
 
 
-@dask_remote
+# @dask_remote
 @cacheable(data_type='array',
-           immutable_args=['time', 'variable', 'lead_time', 'forecast_type', 'run_type', 'grid'])
+           cache_args=['time', 'variable', 'lead_time', 'forecast_type', 'run_type', 'grid'])
 def single_iri_ecmwf(time, variable, lead_time, forecast_type,
                      run_type="average", grid="global1_5",
                      verbose=True):
@@ -38,6 +38,7 @@ def single_iri_ecmwf(time, variable, lead_time, forecast_type,
     """
     # For each lead start time, average or sum over this number of days.
     ACCUMULATE_LEADS_PERIOD = 14
+    ecmwf_key = ecmwf_secret()
 
     if variable == "tmp2m":
         weather_variable_name_on_server = "2m_above_ground/.2t"
@@ -79,16 +80,20 @@ def single_iri_ecmwf(time, variable, lead_time, forecast_type,
     else:
         restrict_leads_url = ""
 
-    ecmwf_key = ecmwf_secret()
-
     if verbose:
         print_ok("ecmwf", bold=True)
 
-    DATETIME_FORMAT = "%Y-%m-%d"
-    # date = dateparser.parse(day)
-    date = datetime.strptime(time, DATETIME_FORMAT)
+    date = dateparser.parse(time)
     day, month, year = datetime.strftime(date, "%d,%b,%Y").split(",")
+
     restrict_forecast_date_url = f"S/%28{day}%20{month}%20{year}%29VALUES/"
+
+    if not is_valid_forecast_date("ecmwf", forecast_type, date):
+        if verbose:
+            print_warning(
+                f"Skipping: {day} {month} {year} (not a valid {forecast_type} date).", skip_line_before=False,
+            )
+        return None
 
     if variable == "tmp2m":
         URL = (
@@ -147,6 +152,14 @@ def single_iri_ecmwf(time, variable, lead_time, forecast_type,
             f"Unknown error occured when trying to download data for {day} {month} {year} for model ecmwf.\n")
         return None
 
+    rename_dict = {
+        "S": "start_date",
+        "L": "lead_time",
+        "X": "lon",
+        "Y": "lat",
+        "M": "model",
+    }
+
     # Read the data and return individual datasets
     if forecast_type == "forecast":
         ds = xr.open_dataset(file, engine="netcdf4")
@@ -166,13 +179,21 @@ def single_iri_ecmwf(time, variable, lead_time, forecast_type,
         ds['hdate'] = pd.to_datetime(
             [model_issuance_date_in_1960 + pd.DateOffset(months=x-6) for x in ds['hdate'].values])
 
+        # Drop future forecast dates, which are all NaNs
+        ds = ds.dropna(dim="hdate", how="all")
+
+        # Reforecast-specific renaming
+        rename_dict["hdate"] = "start_date"
+        rename_dict["S"] = "model_issuance_date"
+
+    ds = ds.rename(rename_dict)
     os.remove(file)
     return ds
 
 
 @dask_remote
 # @cacheable(data_type='array',
-#            immutable_args=['variable', 'lead_time', 'forecast_type', 'run_type', 'grid'])
+#            cache_args=['variable', 'lead_time', 'forecast_type', 'run_type', 'grid'])
 def iri_ecmwf(start_time, end_time, variable, lead_time, forecast_type,
               run_type="average", grid="global1_5",
               verbose=True):
@@ -187,6 +208,7 @@ def iri_ecmwf(start_time, end_time, variable, lead_time, forecast_type,
         run_type (str): The type of run to fetch. One of:
             - average: to download the averaged of the perturbed runs
             - control: to download the control forecast
+            - perturbed: to download all perturbed runs
             - [int 0-50]: to download a specific  perturbed run
         grid (str): The grid resolution to fetch the data at. One of:
             - global1_5: 1.5 degree global grid
@@ -201,6 +223,8 @@ def iri_ecmwf(start_time, end_time, variable, lead_time, forecast_type,
         ds = dask.delayed(single_iri_ecmwf)(
             date, variable, lead_time, forecast_type, run_type, grid, verbose=True,
             filepath_only=True)
+        # ds = single_iri_ecmwf(
+        #     date, variable, lead_time, forecast_type, run_type, grid, verbose=True)
         datasets.append(ds)
 
     datasets = dask.compute(*datasets)
@@ -208,7 +232,8 @@ def iri_ecmwf(start_time, end_time, variable, lead_time, forecast_type,
     if len(ds) == 0:
         return None
 
-    return
-    # x = xr.open_mfdataset(ds, engine='zarr', concat_dim='S', combine="nested")
-    # x = xr.open_mfdataset(ds, engine='zarr', combine="by_coords")
-    # return x
+    x = xr.open_mfdataset(
+        ds, engine='zarr', concat_dim='start_date', combine="nested")
+
+    x = x.sortby('start_date')
+    return x

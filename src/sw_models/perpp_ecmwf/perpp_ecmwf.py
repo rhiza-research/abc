@@ -37,6 +37,8 @@ from sw_models.utils.fit_and_predict import apply_parallel
 from sw_models.utils.models_util import (get_submodel_name, start_logger, log_params, get_forecast_filename,
                                                    save_forecasts)
 from sw_models.utils.perpp_util import fit_and_predict, years_ago
+
+from sw_data.data import era5, iri_ecmwf
 # from subseasonal_data import data_loaders
 
 import re
@@ -200,6 +202,9 @@ if not isnotebook():
     params_values = [eval(param) for param in params_names]
     log_params(params_names, params_values)
 
+
+# %%
+gt_id
 
 # %%
 #

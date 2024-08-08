@@ -3,16 +3,22 @@ import cdsapi
 import os
 import xarray as xr
 import dateparser
+
+from sheerwater_benchmarking.utils.remote import dask_remote
+from sheerwater_benchmarking.utils.caching import cacheable
+
 from sw_data.utils.secrets import cdsapi_secret
-from sw_data.utils.remote import dask_remote
-from sw_data.utils.caching import cacheable
+
+from .utils import get_grid, print_ok, print_info, print_warning, print_error, \
+    download_url, get_dates, is_valid_forecast_date
 
 
-@cacheable(data_type='array', immutable_args=['grid'])
-def land_sea_mask(grid=1.5):
+@cacheable(data_type='array', cache_args=['grid'])
+def land_sea_mask(grid="global1_5"):
     times = ['00:00']
     days = ['01']
     months = ['01']
+    longitudes, latitudes, grid_size = get_grid(grid)
 
     # Make sure the temp folder exists
     os.makedirs('./temp', exist_ok=True)
@@ -30,7 +36,7 @@ def land_sea_mask(grid=1.5):
                    'day': days,
                    'time': times,
                    'format': 'netcdf',
-                   'grid': [str(grid), str(grid)],
+                   'grid': [str(grid_size), str(grid_size)],
                },
                path)
 
@@ -41,12 +47,11 @@ def land_sea_mask(grid=1.5):
     ds = ds.drop('time')
 
     os.remove(path)
-
     return ds
 
 
-@cacheable(data_type='array', immutable_args=['year', 'variable', 'grid'])
-def single_era5(year, variable, grid=1.5):
+@cacheable(data_type='array', cache_args=['year', 'variable', 'grid'])
+def single_era5(year, variable, grid="global1_5"):
     weather_variables = {
         # Static variables (2):
         "z": "geopotential",  # geopotential at surface
@@ -83,6 +88,8 @@ def single_era5(year, variable, grid=1.5):
     months = ["01", "02", "03", "04", "05", "06",
               "07", "08", "09", "10", "11", "12"]
 
+    longitudes, latitudes, grid_size = get_grid(grid)
+
     url, key = cdsapi_secret()
     c = cdsapi.Client(url=url, key=key)
 
@@ -101,7 +108,7 @@ def single_era5(year, variable, grid=1.5):
                    'day': days,
                    'time': times,
                    'format': 'netcdf',
-                   'grid': [str(grid), str(grid)],
+                   'grid': [str(grid_size), str(grid_size)],
                },
                path)
 
@@ -110,7 +117,7 @@ def single_era5(year, variable, grid=1.5):
 
 
 @dask_remote
-def era5(start_time, end_time, variable, grid=1.5):
+def era5(start_time, end_time, variable, grid="global1_5"):
     # Read and combine all the data into an array
     first_year = dateparser.parse(start_time).year
     last_year = dateparser.parse(end_time).year
@@ -123,6 +130,5 @@ def era5(start_time, end_time, variable, grid=1.5):
         datasets.append(ds)
 
     ds = dask.compute(*datasets)
-    print(ds)
     x = xr.open_mfdataset(ds, engine='zarr')
     return x

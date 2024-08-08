@@ -4,7 +4,7 @@ import time
 import requests
 import ssl
 from urllib3 import poolmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import date
 from dateutil.rrule import rrule, DAILY, MONTHLY, WEEKLY, YEARLY
 
@@ -13,26 +13,48 @@ DATETIME_FORMAT = "%Y-%m-%d"
 
 def string_to_dt(string):
     """Transforms string to datetime."""
-    return datetime.datetime.strptime(string, DATETIME_FORMAT)
+    return datetime.strptime(string, DATETIME_FORMAT)
 
 
 def dt_to_string(dt):
     """Transforms datetime to string."""
-    return datetime.datetime.strftime(dt, DATETIME_FORMAT)
+    return datetime.strftime(dt, DATETIME_FORMAT)
 
 
-class TLSAdapter(requests.adapters.HTTPAdapter):
+valid_forecast_dates = {
+    "reforecast": {
+        "ecmwf": (string_to_dt("2015-05-14"), datetime.today(), "monday/thursday"),
+    },
+    "forecast": {
+        "ecmwf": (string_to_dt("2015-05-14"), datetime.today(), "monday/thursday"),
+    },
+}
 
-    def init_poolmanager(self, connections, maxsize, block=False):
-        """Create and initialize the urllib3 PoolManager."""
-        ctx = ssl.create_default_context()
-        ctx.set_ciphers('DEFAULT@SECLEVEL=1')
-        self.poolmanager = poolmanager.PoolManager(
-            num_pools=connections,
-            maxsize=maxsize,
-            block=block,
-            ssl_version=ssl.PROTOCOL_TLS,
-            ssl_context=ctx)
+
+def is_valid_forecast_date(model, forecast_type, forecast_date):
+    assert isinstance(forecast_date, datetime)
+    try:
+        return forecast_date in generate_dates_in_between(*valid_forecast_dates[forecast_type][model])
+    except KeyError:
+        return False
+
+
+def generate_dates_in_between(first_date, last_date, date_frequency):
+    if date_frequency == "monday/thursday":
+        dates = [
+            date
+            for date in generate_dates_in_between(first_date, last_date, "daily")
+            if date.strftime("%A") in ["Monday", "Thursday"]
+        ]
+        return dates
+    else:
+        frequency_to_int = {"daily": 1, "weekly": 7}
+        dates = [
+            first_date +
+            timedelta(days=x * frequency_to_int[date_frequency])
+            for x in range(0, int((last_date - first_date).days / (frequency_to_int[date_frequency])) + 1,)
+        ]
+        return dates
 
 
 def get_grid(region_id):
@@ -54,7 +76,7 @@ def get_grid(region_id):
         grid_size = "1.5"
     else:
         raise NotImplementedError(
-            "Only grids global1_5, global0_5, us1_0, and us1_5 have been implemented.")
+            "Only grids global1_5, us1_0 and us1_5 have been implemented.")
     return longitudes, latitudes, grid_size
 
 
@@ -116,6 +138,20 @@ def print_ok(message="OK", verbose=True, skip_line_before=True, skip_line_after=
 def print_info(message, verbose=True):
     if verbose:
         print(message)
+
+
+class TLSAdapter(requests.adapters.HTTPAdapter):
+
+    def init_poolmanager(self, connections, maxsize, block=False):
+        """Create and initialize the urllib3 PoolManager."""
+        ctx = ssl.create_default_context()
+        ctx.set_ciphers('DEFAULT@SECLEVEL=1')
+        self.poolmanager = poolmanager.PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            ssl_version=ssl.PROTOCOL_TLS,
+            ssl_context=ctx)
 
 
 def download_url(url, timeout=600, retry=3, cookies={}):
